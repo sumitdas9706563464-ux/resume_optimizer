@@ -13,7 +13,9 @@ class TestTextExtraction(unittest.TestCase):
 
     def setUp(self):
         """Set up a dummy PDF for testing."""
-        self.pdf_path = "tests/dummy_resume.pdf"
+        # Get the directory of the current test file
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+        self.pdf_path = os.path.join(test_dir, "dummy_resume.pdf")
         self.expected_text = "This is a dummy resume."
         create_dummy_pdf(self.pdf_path, self.expected_text)
 
