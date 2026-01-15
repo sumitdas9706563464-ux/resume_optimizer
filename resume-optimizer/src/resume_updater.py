@@ -1,4 +1,5 @@
 import re
+import pdfplumber
 
 def add_keywords_to_resume(resume_text, keywords_to_add):
     """
