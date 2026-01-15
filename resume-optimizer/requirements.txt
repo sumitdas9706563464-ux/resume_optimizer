@@ -4,4 +4,4 @@ pdfplumber
 pdfminer.six
 pandas
 numpy
-
+nltk
