@@ -1,6 +1,8 @@
 
 import pdfplumber
 import re
+import docx2txt
+import os
 
 def extract_text_from_pdf(pdf_path):
     """
@@ -32,3 +34,28 @@ def extract_text_from_pdf(pdf_path):
     text = re.sub(r'\s+', ' ', text).strip()
 
     return text
+
+def extract_text_from_docx(docx_path):
+    """
+    Extracts text from a DOCX file.
+    """
+    text = docx2txt.process(docx_path)
+    # Remove excessive whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+def extract_text(file_path):
+    """
+    Extracts text from a file, supporting PDF and DOCX formats.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The file was not found at: {file_path}")
+
+    file_extension = os.path.splitext(file_path)[1].lower()
+
+    if file_extension == '.pdf':
+        return extract_text_from_pdf(file_path)
+    elif file_extension == '.docx':
+        return extract_text_from_docx(file_path)
+    else:
+        raise ValueError(f"Unsupported file format: {file_extension}")

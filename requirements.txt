@@ -4,4 +4,7 @@ pdfplumber
 pdfminer.six
 pandas
 numpy
-
+nltk
+scikit-learn
+docx2txt
+python-docx
