@@ -1,12 +1,11 @@
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
-from xml.sax.saxutils import escape
 
-def generate_pdf(text_content, output_filename):
+def generate_resume_pdf(data, filename="resume.pdf"):
     doc = SimpleDocTemplate(
-        output_filename,
+        filename,
         pagesize=A4,
         rightMargin=40,
         leftMargin=40,
@@ -15,42 +14,57 @@ def generate_pdf(text_content, output_filename):
     )
 
     styles = getSampleStyleSheet()
+    story = []
 
-    normal = ParagraphStyle(
+    # Custom styles
+    name_style = ParagraphStyle(
+        "NameStyle",
+        fontSize=18,
+        spaceAfter=10,
+        leading=22,
+        alignment=1  # center
+    )
+
+    heading_style = ParagraphStyle(
+        "HeadingStyle",
+        fontSize=12,
+        spaceBefore=12,
+        spaceAfter=6,
+        leading=14,
+        fontName="Helvetica-Bold"
+    )
+
+    normal_style = ParagraphStyle(
         "NormalStyle",
-        parent=styles["Normal"],
         fontSize=10,
         leading=14
     )
 
-    heading = ParagraphStyle(
-        "HeadingStyle",
-        parent=styles["Heading2"],
-        spaceBefore=12,
-        spaceAfter=6
+    # ===== HEADER =====
+    story.append(Paragraph(data["name"], name_style))
+    story.append(Paragraph(data["contact"], normal_style))
+    story.append(Spacer(1, 12))
+
+    # ===== SUMMARY =====
+    story.append(Paragraph("SUMMARY", heading_style))
+    story.append(Paragraph(data["summary"], normal_style))
+
+    # ===== SKILLS =====
+    story.append(Paragraph("SKILLS", heading_style))
+    story.append(
+        ListFlowable(
+            [ListItem(Paragraph(skill, normal_style)) for skill in data["skills"]],
+            bulletType="bullet"
+        )
     )
 
-    story = []
+    # ===== EXPERIENCE =====
+    story.append(Paragraph("PROJECTS / EXPERIENCE", heading_style))
+    for exp in data["experience"]:
+        story.append(Paragraph(exp, normal_style))
 
-    for line in text_content.split("\n"):
-        line = line.strip()
-
-        if not line:
-            story.append(Spacer(1, 0.15 * inch))
-            continue
-
-        # Headings (SKILLS, EXPERIENCE, etc.)
-        if line.isupper() and len(line) < 40:
-            story.append(Paragraph(escape(line), heading))
-            continue
-
-        # Bullet points
-        if line.startswith("- "):
-            bullet = escape(line[2:])
-            story.append(Paragraph(f"• {bullet}", normal))
-            continue
-
-        # Normal text
-        story.append(Paragraph(escape(line), normal))
+    # ===== EDUCATION =====
+    story.append(Paragraph("EDUCATION", heading_style))
+    story.append(Paragraph(data["education"], normal_style))
 
     doc.build(story)

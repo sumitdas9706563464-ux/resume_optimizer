@@ -2,34 +2,49 @@ import re
 
 def add_keywords_to_resume(resume_text, keywords_to_add):
     """
-    Adds missing keywords to the Skills section in bullet format.
+    Adds keywords as bullet points under the Skills section.
+    If Skills section does not exist, it creates one.
     """
 
-    skills_header_pattern = r'(?i)(^skills.*?$)'
-    match = re.search(skills_header_pattern, resume_text, re.MULTILINE)
+    keywords_to_add = sorted(set(keywords_to_add))
 
-    unique_keywords = sorted(set(keywords_to_add))
-    existing_text = resume_text.lower()
-    new_keywords = [k for k in unique_keywords if k.lower() not in existing_text]
+    # Regex to capture full Skills section
+    skills_pattern = re.compile(
+        r'(?is)(skills|technical skills|proficiencies)\s*\n(.*?)(\n\n|$)'
+    )
 
-    if not new_keywords:
-        return resume_text
-
-    bullet_skills = "\n- " + "\n- ".join(new_keywords)
+    match = skills_pattern.search(resume_text)
 
     if match:
-        insert_pos = match.end()
+        skills_title = match.group(1)
+        existing_skills_block = match.group(2)
+
+        # Extract existing skills (bullets or commas)
+        existing_skills = re.findall(r'[\w\+\#\.]+', existing_skills_block.lower())
+
+        # Filter new keywords
+        new_skills = [
+            skill for skill in keywords_to_add
+            if skill.lower() not in existing_skills
+        ]
+
+        if not new_skills:
+            return resume_text  # nothing to add
+
+        # Convert to bullet format
+        new_skills_text = "\n" + "\n".join(f"- {skill}" for skill in new_skills)
+
+        updated_skills_block = existing_skills_block.rstrip() + new_skills_text
+
         updated_resume = (
-            resume_text[:insert_pos]
-            + bullet_skills
-            + resume_text[insert_pos:]
-        )
-    else:
-        updated_resume = (
-            resume_text
-            + "\n\nSKILLS"
-            + bullet_skills
+            resume_text[:match.start(2)] +
+            updated_skills_block +
+            resume_text[match.end(2):]
         )
 
-    return updated_resume
-20
+        return updated_resume
+
+    else:
+        # Create a new Skills section
+        skills_section = "\n\nSkills\n" + "\n".join(f"- {k}" for k in keywords_to_add)
+        return resume_text + skills_section
