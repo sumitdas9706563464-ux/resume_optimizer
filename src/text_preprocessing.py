@@ -5,23 +5,19 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 
-# Download necessary NLTK data (if not already downloaded)
-try:
-    stopwords.words('english')
-except LookupError:
-    nltk.download('stopwords')
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-try:
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('wordnet')
-try:
-    nltk.data.find('tokenizers/punkt_tab')
-except LookupError:
-    nltk.download('punkt_tab')
+def _ensure_nltk_data():
+    """Ensures necessary NLTK data is downloaded."""
+    required = [
+        ('corpora/stopwords', 'stopwords'),
+        ('tokenizers/punkt', 'punkt'),
+        ('corpora/wordnet', 'wordnet'),
+        ('tokenizers/punkt_tab', 'punkt_tab')
+    ]
+    for resource, package in required:
+        try:
+            nltk.data.find(resource)
+        except LookupError:
+            nltk.download(package)
 
 def preprocess_text(text):
     """
@@ -33,6 +29,8 @@ def preprocess_text(text):
     Returns:
         str: The preprocessed text.
     """
+    _ensure_nltk_data()
+
     # 1. Lowercasing
     text = text.lower()
 
