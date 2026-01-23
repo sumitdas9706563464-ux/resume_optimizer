@@ -1,0 +1,8 @@
+John Doe
+john@example.com
+Experience
+Software Engineer at Tech Corp
+- Managed a team of developers.
+- Developed scalable applications.
+Skills
+Python, Java

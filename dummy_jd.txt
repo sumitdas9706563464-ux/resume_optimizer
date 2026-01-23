@@ -1,0 +1,6 @@
+Job Description
+We are looking for a Python Software Engineer.
+Requirements:
+- Python, AWS, Docker
+- Leadership skills
+- Experience managing teams

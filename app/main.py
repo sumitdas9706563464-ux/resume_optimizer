@@ -1,186 +1,230 @@
 
-"""
-This is the main script for the Interactive AI Resume Optimizer application.
-It uses Streamlit to create a web-based user interface for resume analysis and optimization.
-"""
-
 import streamlit as st
 import sys
 import os
 import tempfile
 
-# Add the 'src' directory to the Python path to import our modules
+# Add the 'src' directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.text_extraction import extract_text
 from src.text_preprocessing import preprocess_text
-from src.keyword_extraction import extract_keywords
+from src.keyword_extraction import extract_keywords, categorize_keywords
 from src.similarity_scoring import calculate_similarity
 from src.ats_scoring import calculate_ats_score
 from src.gap_analysis import analyze_gaps
-from src.explainability import generate_explanations
 from src.resume_updater import add_keywords_to_resume
 from src.document_generation import generate_pdf, generate_docx
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="ATS Resume Optimizer",
-    page_icon="📄",
+    page_title="AI Resume Optimizer Pro",
+    page_icon="🚀",
     layout="wide"
 )
 
-# --- Session State Initialization ---
-# This helps maintain state across user interactions
+# --- Custom CSS ---
+st.markdown("""
+<style>
+    .main {
+        background-color: #f5f7f9;
+    }
+    .stMetric {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .stButton>button {
+        border-radius: 5px;
+        height: 3em;
+        transition: all 0.3s;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .keyword-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background-color: #e1f5fe;
+        color: #0288d1;
+        font-size: 0.8em;
+        margin: 2px;
+        border: 1px solid #b3e5fc;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Session State ---
 if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
+if 'optimized' not in st.session_state:
+    st.session_state.optimized = False
+if 'original_score' not in st.session_state:
+    st.session_state.original_score = 0
+if 'optimized_score' not in st.session_state:
+    st.session_state.optimized_score = 0
 if 'missing_keywords' not in st.session_state:
     st.session_state.missing_keywords = []
-if 'original_resume_text' not in st.session_state:
-    st.session_state.original_resume_text = ""
-if 'file_generated' not in st.session_state:
-    st.session_state.file_generated = False
-if 'generated_pdf_path' not in st.session_state:
-    st.session_state.generated_pdf_path = ""
-if 'generated_docx_path' not in st.session_state:
-    st.session_state.generated_docx_path = ""
+if 'categorized_missing' not in st.session_state:
+    st.session_state.categorized_missing = {}
+if 'resume_text' not in st.session_state:
+    st.session_state.resume_text = ""
+if 'optimized_text' not in st.session_state:
+    st.session_state.optimized_text = ""
+if 'jd_text' not in st.session_state:
+    st.session_state.jd_text = ""
 
-# --- Sidebar for User Inputs ---
+# --- Sidebar ---
 with st.sidebar:
-    st.title("📄 ATS Resume Optimizer")
-    st.markdown("---")
-    st.header("Upload Your Files")
-    uploaded_resume = st.file_uploader("Upload your Resume (PDF or DOCX)", type=["pdf", "docx"])
-    uploaded_jd = st.file_uploader("Upload Job Description (PDF or DOCX)", type=["pdf", "docx"])
-    job_description_text = st.text_area("Or Paste the Job Description here", height=200)
+    st.title("🚀 Resume Pro")
+    st.markdown("Optimize your resume for ATS systems in seconds.")
+    st.divider()
 
-    st.markdown("---")
-    analyze_button = st.button("Analyze Resume", use_container_width=True)
+    uploaded_resume = st.file_uploader("Upload Resume (PDF/DOCX)", type=["pdf", "docx"])
+    uploaded_jd = st.file_uploader("Upload Job Description", type=["pdf", "docx"])
+    job_description_text = st.text_area("Or Paste Job Description", height=150)
 
-# --- Main Panel for Displaying Results ---
-st.title("AI-Powered Resume Analysis")
+    analyze_btn = st.button("🔍 Analyze Resume", use_container_width=True, type="primary")
 
-# This block executes when the user clicks the "Analyze Resume" button
-if analyze_button:
+# --- Main Content ---
+st.title("AI-Powered ATS Optimizer")
+
+if analyze_btn:
     if uploaded_resume and (uploaded_jd or job_description_text):
-        with st.spinner("Analyzing your resume..."):
+        with st.spinner("Analyzing match..."):
             temp_dir = tempfile.gettempdir()
 
-            # Process uploaded resume
+            # Extract Resume Text
             temp_resume_path = os.path.join(temp_dir, uploaded_resume.name)
             with open(temp_resume_path, "wb") as f:
                 f.write(uploaded_resume.getbuffer())
-            resume_text = extract_text(temp_resume_path)
-            st.session_state.original_resume_text = resume_text
+            st.session_state.resume_text = extract_text(temp_resume_path)
 
-            # Process job description from file or text area
-            jd_text = ""
-            temp_jd_path = None
+            # Extract JD Text
             if uploaded_jd:
                 temp_jd_path = os.path.join(temp_dir, uploaded_jd.name)
                 with open(temp_jd_path, "wb") as f:
                     f.write(uploaded_jd.getbuffer())
-                jd_text = extract_text(temp_jd_path)
+                st.session_state.jd_text = extract_text(temp_jd_path)
             else:
-                jd_text = job_description_text
+                st.session_state.jd_text = job_description_text
 
-            # --- NLP Pipeline Execution ---
-            # The following steps perform the core analysis of the resume and job description
-            ats_score, ats_feedback = calculate_ats_score(resume_text)
-            preprocessed_resume = preprocess_text(resume_text)
-            preprocessed_jd = preprocess_text(jd_text)
-            resume_keywords = extract_keywords(preprocessed_resume)
+            # NLP Pipeline
+            preprocessed_resume = preprocess_text(st.session_state.resume_text)
+            preprocessed_jd = preprocess_text(st.session_state.jd_text)
+
             jd_keywords = extract_keywords(preprocessed_jd)
-            similarity_score = calculate_similarity(preprocessed_resume, preprocessed_jd)
+            resume_keywords = extract_keywords(preprocessed_resume)
+
             gaps = analyze_gaps(resume_keywords, jd_keywords)
-            explanations = generate_explanations(gaps)
             st.session_state.missing_keywords = gaps['missing_keywords']
+            st.session_state.categorized_missing = categorize_keywords(gaps['missing_keywords'])
+
+            # Scoring
+            st.session_state.original_score, st.session_state.feedback = calculate_ats_score(
+                st.session_state.resume_text,
+                jd_keywords
+            )
+
             st.session_state.analysis_complete = True
-
-            # --- Display Results ---
-            # The results are displayed in two columns for a clean layout
-            col1, col2 = st.columns(2)
-            with col1:
-                st.header("ATS Score")
-                st.metric(label="Your Resume's ATS Score", value=f"{ats_score}%")
-                with st.expander("See detailed feedback"):
-                    for feedback_item in ats_feedback:
-                        st.warning(feedback_item)
-
-            with col2:
-                st.header("Job Description Match")
-                st.metric(label="Resume Match Score", value=f"{similarity_score:.2f}%")
-
-            st.markdown("---")
-            st.header("Missing Keywords & Suggestions")
-            if not gaps['missing_keywords']:
-                st.success("Excellent! Your resume aligns well with the key requirements.")
-            else:
-                for i, keyword in enumerate(gaps['missing_keywords']):
-                    st.warning(f"**Missing Keyword:** {keyword}")
-                    st.info(f"**Suggestion:** {explanations['missing'][i]}")
-
-            # Clean up temporary files to save space
-            os.remove(temp_resume_path)
-            if temp_jd_path:
-                os.remove(temp_jd_path)
+            st.session_state.optimized = False # Reset optimization if new analysis
     else:
-        st.error("Please upload a resume and provide a job description.")
+        st.error("Please provide both a resume and a job description.")
 
-# This block executes after the analysis is complete
 if st.session_state.analysis_complete:
-    st.markdown("---")
-    st.header("Optimize Your Resume")
+    tab1, tab2, tab3 = st.tabs(["📊 Analysis", "🛠️ Optimization", "📥 Download"])
 
-    keywords_to_add = st.multiselect(
-        "Select keywords to add to your resume's skills section:",
-        options=st.session_state.missing_keywords
-    )
+    with tab1:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("ATS Score", f"{st.session_state.original_score}%")
+        with col2:
+            match_score = calculate_similarity(preprocess_text(st.session_state.resume_text), preprocess_text(st.session_state.jd_text))
+            st.metric("JD Match", f"{match_score:.1f}%")
+        with col3:
+            st.metric("Missing Keywords", len(st.session_state.missing_keywords))
 
-    if st.button("Update Resume & Generate Files", use_container_width=True):
-        if keywords_to_add:
-            with st.spinner("Generating your optimized resume..."):
-                updated_text = add_keywords_to_resume(st.session_state.original_resume_text, keywords_to_add)
+        st.subheader("ATS Feedback")
+        for item in st.session_state.feedback:
+            if "excellent" in item.lower() or "good" in item.lower():
+                st.success(item)
+            else:
+                st.warning(item)
 
-                # Generate both PDF and DOCX files for download
-                output_pdf_path = os.path.join(tempfile.gettempdir(), "Optimized_Resume.pdf")
-                generate_pdf(updated_text, output_pdf_path)
-                st.session_state.generated_pdf_path = output_pdf_path
+        st.subheader("Missing Keywords by Category")
+        cat_cols = st.columns(len(st.session_state.categorized_missing))
+        for i, (cat, words) in enumerate(st.session_state.categorized_missing.items()):
+            with cat_cols[i]:
+                st.write(f"**{cat}**")
+                if words:
+                    for word in words:
+                        st.markdown(f"<span class='keyword-tag'>{word}</span>", unsafe_allow_html=True)
+                else:
+                    st.write("None missing!")
 
-                output_docx_path = os.path.join(tempfile.gettempdir(), "Optimized_Resume.docx")
-                generate_docx(updated_text, output_docx_path)
-                st.session_state.generated_docx_path = output_docx_path
+    with tab2:
+        st.subheader("Enhance Your Resume")
+        st.write("Select the keywords you want to naturally integrate into your resume.")
 
-                st.session_state.file_generated = True
+        selected_keywords = st.multiselect(
+            "Keywords to add (~30 recommended for best results)",
+            options=st.session_state.missing_keywords,
+            default=st.session_state.missing_keywords[:min(30, len(st.session_state.missing_keywords))]
+        )
+
+        if st.button("🚀 Optimize Resume Now", use_container_width=True, type="primary"):
+            with st.spinner("Generating optimized version..."):
+                st.session_state.optimized_text = add_keywords_to_resume(st.session_state.resume_text, selected_keywords)
+
+                # Re-calculate score
+                preprocessed_jd = preprocess_text(st.session_state.jd_text)
+                jd_keywords = extract_keywords(preprocessed_jd)
+                st.session_state.optimized_score, _ = calculate_ats_score(st.session_state.optimized_text, jd_keywords)
+                st.session_state.optimized = True
+
+        if st.session_state.optimized:
+            st.success("Resume Optimized!")
+            c1, c2 = st.columns(2)
+            c1.metric("Original Score", f"{st.session_state.original_score}%")
+            c2.metric("Optimized Score", f"{st.session_state.optimized_score}%", delta=f"{st.session_state.optimized_score - st.session_state.original_score}%")
+
+            with st.expander("Preview Optimized Text"):
+                st.text(st.session_state.optimized_text)
+
+    with tab3:
+        if st.session_state.optimized:
+            st.subheader("Download Production-Ready Resume")
+            st.write("These files are formatted to be 100% ATS-friendly.")
+
+            col_pdf, col_docx = st.columns(2)
+
+            # PDF Generation
+            pdf_path = os.path.join(tempfile.gettempdir(), "Optimized_Resume_Pro.pdf")
+            generate_pdf(st.session_state.optimized_text, pdf_path)
+            with open(pdf_path, "rb") as f:
+                col_pdf.download_button(
+                    "Download PDF",
+                    data=f,
+                    file_name="Optimized_Resume_Pro.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+
+            # DOCX Generation
+            docx_path = os.path.join(tempfile.gettempdir(), "Optimized_Resume_Pro.docx")
+            generate_docx(st.session_state.optimized_text, docx_path)
+            with open(docx_path, "rb") as f:
+                col_docx.download_button(
+                    "Download DOCX",
+                    data=f,
+                    file_name="Optimized_Resume_Pro.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
         else:
-            st.warning("Please select at least one keyword to add.")
-
-# This block executes after the optimized resume has been generated
-if st.session_state.file_generated:
-    st.markdown("---")
-    st.header("Download Your Optimized Resume")
-
-    download_format = st.radio(
-        "Choose your preferred download format:",
-        ('PDF', 'DOCX'),
-        horizontal=True
-    )
-
-    # Provide download buttons for both PDF and DOCX formats
-    if download_format == 'PDF':
-        with open(st.session_state.generated_pdf_path, "rb") as file:
-            st.download_button(
-                label="Download Optimized Resume (PDF)",
-                data=file,
-                file_name="Optimized_Resume.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-    elif download_format == 'DOCX':
-        with open(st.session_state.generated_docx_path, "rb") as file:
-            st.download_button(
-                label="Download Optimized Resume (DOCX)",
-                data=file,
-                file_name="Optimized_Resume.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True
-            )
+            st.info("Please optimize your resume in the 'Optimization' tab first.")
+else:
+    st.info("Upload your resume and a job description to begin the analysis.")
